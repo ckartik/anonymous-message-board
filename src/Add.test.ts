@@ -55,23 +55,50 @@ describe('Add', () => {
     setTimeout(shutdown, 0);
   });
 
-  it('generates and deploys the `Add` smart contract', async () => {
+  it.only('generates and deploys the `Add` smart contract', async () => {
     const zkAppInstance = new Add(zkAppAddress);
     await localDeploy(zkAppInstance, zkAppPrivateKey, deployerAccount);
-    const num = zkAppInstance.num.get();
-    expect(num).toEqual(Field.one);
+    const num = zkAppInstance.message.get();
+    expect(num).toEqual(Field.zero);
   });
 
-  it('correctly updates the num state on the `Add` smart contract', async () => {
+  it.only('Update Value using Signature', async () => {
     const zkAppInstance = new Add(zkAppAddress);
     await localDeploy(zkAppInstance, zkAppPrivateKey, deployerAccount);
     const txn = await Mina.transaction(deployerAccount, () => {
-      zkAppInstance.update();
+      zkAppInstance.publishMessage(
+        Field(25),
+        PrivateKey.fromBase58(
+          'EKFAdBGSSXrBbaCVqy4YjwWHoGEnsqYRQTqz227Eb5bzMx2bWu3F'
+        )
+      );
       zkAppInstance.sign(zkAppPrivateKey);
     });
     await txn.send().wait();
 
-    const updatedNum = zkAppInstance.num.get();
-    expect(updatedNum).toEqual(Field(3));
+    const updatedNum = zkAppInstance.message.get();
+    expect(updatedNum).toEqual(Field(25));
+  });
+  it.only('Ensure failure with wrong signer', async () => {
+    const zkAppInstance = new Add(zkAppAddress);
+    await localDeploy(zkAppInstance, zkAppPrivateKey, deployerAccount);
+    var failure = null;
+    try {
+      const txn = await Mina.transaction(deployerAccount, () => {
+        zkAppInstance.publishMessage(
+          Field(25),
+          PrivateKey.fromBase58(
+            'EKFS9v8wxyrrEGfec4HXycCC2nH7xf79PtQorLXXsut9WUrav4Nw'
+          )
+        );
+        zkAppInstance.sign(zkAppPrivateKey);
+      });
+      await txn.send().wait();
+    } catch (e) {
+      failure = e;
+    }
+    expect(failure).not.toBeNull();
+    const updatedNum = zkAppInstance.message.get();
+    expect(updatedNum).toEqual(Field(0));
   });
 });
